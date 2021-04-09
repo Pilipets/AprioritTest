@@ -14,22 +14,29 @@ struct TracerConfig {
 	uint8_t async_cnt = 5;
 };
 
-class BtcApiClient;
+#include "client/BtcApiClient.h"
 
 class BtcTransactionTracer {
 	typedef BtcApiClient BtcApi;
-	std::shared_ptr<BtcApi> btcApi;
+	typedef uint64_t IdType;
+	typedef string AddressType;
+
+	std::unique_ptr<BtcApi> btcApi;
 	const uint8_t async_cnt;
 
 	std::mutex mx;
-	std::queue<string> q;
-	std::unordered_set<string> res;		//res addresses
-	std::unordered_set<string> err_res; //error addresses
+	std::queue<IdType> q;
+	std::unordered_set<IdType> cache;
+	std::unordered_set<IdType> err_cache;
 
-	string getNextAddress();
-	void processTxResponse(cpr::Response &&r, string txid);
+	std::unordered_set<AddressType> res;
+
+	IdType getNextAddress();
+	void processTxResponse(cpr::Response &&r, IdType txid);
+
+	bool init(string &&tx_hash);
 public:
 	BtcTransactionTracer() = delete;
-	std::pair<std::vector<string>, std::vector<string>> traceAddresses(string txid);
-	BtcTransactionTracer(std::shared_ptr<BtcApi> btcApi, const TracerConfig &conf);
+	std::vector<string> traceAddresses(string txHash);
+	BtcTransactionTracer(const TracerConfig &conf);
 };
