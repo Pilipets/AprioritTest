@@ -13,45 +13,42 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
-    <Filter Include="Header Files\client">
-      <UniqueIdentifier>{97a56502-a90f-4a80-b082-8c1d23ea3a06}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Source Files\client">
-      <UniqueIdentifier>{ec6124e1-b973-4f31-9d71-b17a7b37da7b}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Header Files\tracer">
-      <UniqueIdentifier>{8307c26d-bd4f-4ec3-8d14-17bd7b2290e1}</UniqueIdentifier>
+      <UniqueIdentifier>{2919b7f0-5e90-46b4-aec0-861ef1c5f8b4}</UniqueIdentifier>
     </Filter>
     <Filter Include="Source Files\tracer">
-      <UniqueIdentifier>{3cb67f99-ff79-46fd-a091-f675aceddb3e}</UniqueIdentifier>
+      <UniqueIdentifier>{8de1120c-0479-47a4-94c7-d26a480978e3}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Header Files\dto">
-      <UniqueIdentifier>{22102504-735a-4b4a-a7a3-b63941d89066}</UniqueIdentifier>
+    <Filter Include="Header Files\client">
+      <UniqueIdentifier>{63114c92-7a83-4456-a4b2-129589b3a3fa}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\client">
+      <UniqueIdentifier>{178a6e78-54d8-4a14-b124-a0262dd8c65c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\queue_set">
+      <UniqueIdentifier>{60f50a2d-2ed8-48fa-a841-131cf89f8b1f}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="App.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\client\BtcApiClient.cpp">
-      <Filter>Source Files\client</Filter>
-    </ClCompile>
-    <ClCompile Include="src\AppComponent.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="src\tracer\BtcTransactionTracer.cpp">
       <Filter>Source Files\tracer</Filter>
     </ClCompile>
+    <ClCompile Include="src\client\BtcApiClient.cpp">
+      <Filter>Source Files\client</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="src\tracer\BtcTransactionTracer.h">
+      <Filter>Header Files\tracer</Filter>
+    </ClInclude>
     <ClInclude Include="src\client\BtcApiClient.h">
       <Filter>Header Files\client</Filter>
     </ClInclude>
-    <ClInclude Include="src\AppComponent.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="src\tracer\BtcTransactionTracer.h">
-      <Filter>Header Files\tracer</Filter>
+    <ClInclude Include="src\set_queue\QueueSet.h">
+      <Filter>Header Files\queue_set</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>
