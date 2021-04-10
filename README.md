@@ -16,3 +16,4 @@ Details:
 so we store them into the BtcTransactionTracer::tx_err.
 5. BtcTransactionTracer::tx_cache stores the transaction where unspent outputs were found - tx_cache.size() <= res.size().
 Besides additional unspent-related details, it serves as a cache, to avoid processing the same transaction multiple times.
+5. UPDATED SO tx_cache stores all the processed transactions.

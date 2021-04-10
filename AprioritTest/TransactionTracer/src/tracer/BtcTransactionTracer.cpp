@@ -36,20 +36,19 @@ namespace btc_explorer {
 		}
 	}
 
-	void BtcTransactionTracer::processTxResponse(cpr::Response&& r, IdType txid) {
+	void BtcTransactionTracer::processTxResponse(cpr::Response&& r, IdType txid, size_t depth) {
 		auto j = json::object();
 		try {
 			j = json::parse(extract_outs(std::move(r.text)), outs_filter);
 			PLOGD << "Processing txid=" << txid << " with " << j["out"].size() << " outs";
 		}
 		catch (std::exception& ex) {
-			PLOGW << "Processing txid failed with " << ex.what();
 			std::lock_guard<std::mutex> lk(mx);
 			tx_err.insert(txid);
+			PLOGW_IF(tx_err.size() % 100 == 0) << "Processing txid failed with " << ex.what();
 			return;
 		}
 
-		bool all_spent = true;
 		for (auto& tx : j["out"]) {
 			assert(tx["spent"].is_boolean());
 
@@ -58,38 +57,39 @@ namespace btc_explorer {
 					assert(addr["tx_index"].is_number_unsigned());
 
 					auto val = addr["tx_index"].get<IdType>();
-					PLOGD << "Chaining new transaction with txid=" << val;
 					std::lock_guard<std::mutex> lk(mx);
-					if (!tx_cache.count(val))
-						post(pool, std::bind(&BtcTransactionTracer::processTxRequest, this, val));
+					if (depth < conf.max_depth && !tx_cache.count(val)) {
+						PLOGD << "Chaining new transaction with txid=" << val << ", depth= " << depth;
+						tx_cache.insert(val);
+						post(pool, std::bind(&BtcTransactionTracer::processTxRequest, this, val, depth + 1));
+					}
 				}
 			}
 			else {
 				auto val = tx["addr"];
 				if (val.is_string()) {
 					// cb4ba354741eb3ff2a44dfe410136c7a268af85e5f8ec261185aef0f0167270a, "addr":null ?!
-					all_spent = false;
-
 					auto addr = val.get<string>();
 
 					std::lock_guard<std::mutex> lk(mx);
-					res.insert(addr);
-					PLOGI << "Adding new unspent address=" << addr << ", " << res.size() << " in total";
+					if (!res.count(addr)) {
+						res.insert(addr);
+						PLOGI_IF(res.size() % 100 == 0) << "Adding new unspent address=" << addr << ", " << res.size() << " in total" << ", cache_size= " << tx_cache.size();
+					}
 				}
 			}
 		}
 		PLOGD << "\n";
-
-		if (!all_spent) {
-			std::lock_guard<std::mutex> lk(mx);
-			tx_cache.insert(j["out"].front()["tx_index"].get<IdType>());
-		}
 	}
 
-	void BtcTransactionTracer::processTxRequest(IdType txid) {
+	void BtcTransactionTracer::processTxRequest(IdType txid, size_t depth) {
 		auto r = btcApi->getTxRaw(txid);
 		if (r.error || r.status_code != 200) {
-			PLOGW << "Unable to read txid=" << txid << " from " << r.url;
+			{
+				std::lock_guard<std::mutex> lk(mx);
+				tx_err.insert(std::move(txid));
+				PLOGW_IF(tx_err.size() % 100 == 0) << "Unable to read txid=" << txid << " from " << r.url;
+			}
 
 			if (r.error) {
 				PLOGW << "Details: err_code=" << static_cast<int>(r.error.code) << ",msg=" << r.error.message;
@@ -97,12 +97,9 @@ namespace btc_explorer {
 			else {
 				PLOGW << "Details: http_code=" << r.status_code << ",msg=" << r.status_line;
 			}
-
-			std::lock_guard<std::mutex> lk(mx);
-			tx_err.insert(std::move(txid));
 		}
 		else {
-			processTxResponse(std::move(r), std::move(txid));
+			processTxResponse(std::move(r), txid, depth);
 		}
 	}
 
@@ -135,7 +132,8 @@ namespace btc_explorer {
 		auto txid = init(std::move(tx_hash));
 		if (!txid) return {};
 
-		post(pool, std::bind(&BtcTransactionTracer::processTxRequest, this, *txid));
+		tx_cache.insert(*txid);
+		post(pool, std::bind(&BtcTransactionTracer::processTxRequest, this, *txid, 0));
 		pool.join();
 
 		std::copy(res.begin(), res.end(), std::ostream_iterator<AddressType>(fout, ", "));

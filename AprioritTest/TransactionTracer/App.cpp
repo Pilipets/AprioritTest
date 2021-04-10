@@ -25,7 +25,7 @@ int main(int argc, char** argv) {
 		throw std::logic_error("First transaction as an argument ':txhash' is expected");
 	}
 
-	BtcTransactionTracer tracer(TracerConfig{ 6, "out.txt" });
+	BtcTransactionTracer tracer(TracerConfig{ 6, "out.txt", INT_MAX});
 
 	try {
 		auto [res, err] = tracer.traceAddresses(argv[1]);
