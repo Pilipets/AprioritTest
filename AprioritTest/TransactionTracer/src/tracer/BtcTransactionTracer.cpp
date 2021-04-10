@@ -133,7 +133,7 @@ namespace btc_explorer {
 		if (!init(std::move(tx_hash))) return {};
 
 		std::vector<std::future<void>> requests(async_cnt);
-		for (uint64_t step = 1, total_req = 0; step < 2000 && !q.empty(); ++step) {
+		for (uint64_t step = 1, total_req = 0; !q.empty(); ++step) {
 			PLOGI << "#Step " << step << ": total_req=" << total_req << ", res_size=" << res.size();
 
 			auto qsize = min(q.size(), async_cnt);
