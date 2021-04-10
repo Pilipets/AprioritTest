@@ -25,9 +25,6 @@
     <Filter Include="Source Files\client">
       <UniqueIdentifier>{178a6e78-54d8-4a14-b124-a0262dd8c65c}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Header Files\queue_set">
-      <UniqueIdentifier>{60f50a2d-2ed8-48fa-a841-131cf89f8b1f}</UniqueIdentifier>
-    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="App.cpp">
@@ -46,9 +43,6 @@
     </ClInclude>
     <ClInclude Include="src\client\BtcApiClient.h">
       <Filter>Header Files\client</Filter>
-    </ClInclude>
-    <ClInclude Include="src\set_queue\QueueSet.h">
-      <Filter>Header Files\queue_set</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

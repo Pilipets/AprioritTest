@@ -2,7 +2,7 @@
 
 #include <cpr/cpr.h>
 
-std::future<void> BtcApiClient::getTxRawAsync(int txid, std::function<void(cpr::Response)> &&cb) {
+std::future<void> BtcApiClient::getTxRawAsync(uint64_t txid, std::function<void(cpr::Response)> &&cb) {
 	string url = host + "rawtx/" + std::to_string(txid);
 	return cpr::GetCallback(std::move(cb), cpr::Url{ url });
 }
