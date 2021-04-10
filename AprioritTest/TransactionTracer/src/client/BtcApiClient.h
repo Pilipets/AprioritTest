@@ -5,7 +5,6 @@
 #include <future>
 #include <string>
 #include <functional>
-
 using std::string;
 
 class BtcApiClient {

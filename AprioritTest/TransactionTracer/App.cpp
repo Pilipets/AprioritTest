@@ -11,15 +11,14 @@
 
 int main(int argc, char** argv) {
 	static plog::ConsoleAppender<plog::TxtFormatter> consoleAppender;
-	plog::init(plog::verbose, &consoleAppender);
+	plog::init(plog::info, &consoleAppender);
 
 	if (argc != 2) {
 		PLOGD << "First transaction as an argument 'tx_hash' is expected";
 		throw std::logic_error("First transaction as an argument ':txhash' is expected");
 	}
 
-	BtcTransactionTracer tracer(TracerConfig{ 5 });
-
+	BtcTransactionTracer tracer(TracerConfig{ 6 });
 	auto res = tracer.traceAddresses(argv[1]);
 
 	PLOGI << "Traced " << res.size() << " addresses:";

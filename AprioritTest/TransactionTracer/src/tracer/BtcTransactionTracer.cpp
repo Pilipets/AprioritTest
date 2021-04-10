@@ -2,11 +2,9 @@
 
 #include <plog/Log.h>
 #include <nlohmann/json.hpp>
-#include <iostream>
 #include <cassert>
 #include <future>
 
-using std::cout;
 using namespace nlohmann;
 
 namespace {
@@ -45,52 +43,59 @@ void BtcTransactionTracer::processTxResponse(cpr::Response&& r, IdType txid) {
 		}
 
 		std::lock_guard<std::mutex> lk(mx);
-		err_cache.insert(std::move(txid));
+		tx_err.insert(std::move(txid));
 		return;
 	}
 	
 	auto outs = extract_outs(std::move(r.text));
 	auto j = json::parse(outs, outs_filter);
-	//cout << j << "\n";
+	PLOGD << "Processing txid=" << txid << " with " << j["out"].size() << " outs";
 
+	bool all_spent = true;
 	for (auto& tx : j["out"]) {
 		if (tx["spent"] == true) {
 			for (auto& addr : tx["spending_outpoints"]) {
 				auto val = addr["tx_index"];
 				assert(val.is_number_unsigned());
 
-				/*
+				auto txid = val.get<IdType>();
 				std::lock_guard<std::mutex> lk(mx);
-					//cout << std::to_string(val.get<std::uint64_t>()) << "\n";
-					auto id = val.get<std::uint64_t>();
-					if (!cache.count(id)) {
-						q.push(std::to_string(id));
-						cache.insert(id);
-					}
-				}*/
+
+				q.push(txid);
+				PLOGD << "Chaining new transaction with txid=" << txid;
 			}
 		} else {
 			auto val = tx["addr"];
 			if (val.is_string()) {
 				// cb4ba354741eb3ff2a44dfe410136c7a268af85e5f8ec261185aef0f0167270a, "addr":null ?!
+				all_spent = false;
 
-
+				auto addr = val.get<std::string>();
 				std::lock_guard<std::mutex> lk(mx);
-				res.insert(val.get<std::string>());
+				res.insert(addr);
+
+				PLOGD << "Adding new unspent address=" << addr;
 			}
-			//assert(val.is_string());
 		}
+	}
+	PLOGD << "\n";
+
+	if (!all_spent) {
+		std::lock_guard<std::mutex> lk(mx);
+		tx_cache.insert(j["out"].front()["tx_index"].get<IdType>());
 	}
 }
 
-BtcTransactionTracer::IdType BtcTransactionTracer::getNextAddress() {
+std::optional<BtcTransactionTracer::IdType> BtcTransactionTracer::getNextAddress() {
 	std::lock_guard<std::mutex> lk(mx);
+	while (!q.empty() && tx_cache.count(q.front())) q.pop();
+	if (q.empty()) return {};
 	auto txid = std::move(q.front()); q.pop();
 	return txid;
 }
 
 bool BtcTransactionTracer::init(string&& tx_hash) {
-	PLOGI << "Starting tracing from the tx_hash=" << tx_hash;
+	PLOGI << "Starting tracing from the tx_hash=" << tx_hash << "\n";
 	auto r = btcApi->getTxRaw(tx_hash);
 
 	if (r.error)
@@ -114,16 +119,17 @@ std::vector<string> BtcTransactionTracer::traceAddresses(string tx_hash) {
 	if (!init(std::move(tx_hash))) return {};
 
 	std::vector<std::future<void>> requests(async_cnt);
-	for (uint64_t step = 1, total_req = 0; !q.empty(); ++step) {
-		PLOGD << "#Step " << step << ": total_req=" << total_req << ", res_size=" << res.size();
+	for (uint64_t step = 1, total_req = 0; step < 2000 && !q.empty(); ++step) {
+		PLOGI << "#Step " << step << ": total_req=" << total_req << ", res_size=" << res.size();
 
 		auto qsize = min(q.size(), async_cnt);
 		for (auto i = 0; i < qsize; ++i) {
 			auto txid = getNextAddress();
-			requests[i] = btcApi->getTxRawAsync(
-				txid,
-				std::bind(&BtcTransactionTracer::processTxResponse, this, std::placeholders::_1, txid)
-			);
+			if (!txid) qsize = i;
+			else {
+				requests[i] = btcApi->getTxRawAsync(
+					*txid, std::bind(&BtcTransactionTracer::processTxResponse, this, std::placeholders::_1, *txid));
+			}
 		}
 
 		for (auto i = 0; i < qsize; ++i) {
@@ -134,7 +140,6 @@ std::vector<string> BtcTransactionTracer::traceAddresses(string tx_hash) {
 			}
 		}
 		total_req += qsize;
-		break;
 	}
 
 	return std::vector<string>(res.begin(), res.end());

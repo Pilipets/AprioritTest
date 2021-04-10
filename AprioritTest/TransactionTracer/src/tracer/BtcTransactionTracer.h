@@ -6,6 +6,7 @@
 #include <vector>
 #include <unordered_set>
 #include <utility>
+#include <optional>
 #include <cpr/response.h>
 
 using std::string;
@@ -26,12 +27,12 @@ class BtcTransactionTracer {
 
 	std::mutex mx;
 	std::queue<IdType> q;
-	std::unordered_set<IdType> cache;
-	std::unordered_set<IdType> err_cache;
+	std::unordered_set<IdType> tx_cache;
 
+	std::unordered_set<IdType> tx_err;
 	std::unordered_set<AddressType> res;
 
-	IdType getNextAddress();
+	std::optional<IdType> getNextAddress();
 	void processTxResponse(cpr::Response &&r, IdType txid);
 
 	bool init(string &&tx_hash);
