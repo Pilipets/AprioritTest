@@ -9,6 +9,8 @@
 #include <optional>
 
 #include <cpr/response.h>
+#include <boost/asio.hpp>
+
 #include "client/BtcApiClient.h"
 
 namespace btc_explorer {
@@ -17,6 +19,7 @@ namespace btc_explorer {
 
 	struct TracerConfig {
 		uint8_t async_cnt;
+		const char* out_file;
 	};
 
 
@@ -26,22 +29,26 @@ namespace btc_explorer {
 		typedef string AddressType;
 
 		const std::unique_ptr<BtcApi> btcApi;
-		const uint8_t async_cnt;
 
+		boost::asio::thread_pool pool;
 		std::mutex mx;
-		std::queue<IdType> q;
 		std::unordered_set<IdType> tx_cache;
 
 		std::unordered_set<IdType> tx_err;
 		std::unordered_set<AddressType> res;
 
-		std::optional<IdType> getNextAddress();
-		void processTxResponse(cpr::Response&& r, IdType txid);
+		TracerConfig conf;
+	private:
 
-		bool init(string&& tx_hash);
+		void processTxResponse(cpr::Response&& r, IdType txid);
+		void processTxRequest(IdType txid);
+
+		std::optional<IdType> init(string&& tx_hash);
+
 	public:
 		BtcTransactionTracer() = delete;
 		pair<std::vector<AddressType>, std::vector<IdType>> traceAddresses(string txHash);
 		BtcTransactionTracer(const TracerConfig& conf);
+		~BtcTransactionTracer();
 	};
 }

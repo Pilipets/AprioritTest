@@ -14,5 +14,9 @@ namespace btc_explorer {
 		return cpr::Get(cpr::Url{ std::move(url) });
 	}
 
+	cpr::Response BtcApiClient::getTxRaw(uint64_t txid) {
+		string url = host + "rawtx/" + std::to_string(txid);
+		return cpr::Get(cpr::Url{ std::move(url) });
+	}
 }
 

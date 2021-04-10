@@ -2,12 +2,14 @@
 
 #include <cassert>
 #include <future>
+#include <fstream>
 
 #include <plog/Log.h>
 #include <nlohmann/json.hpp>
 
 namespace btc_explorer {
 	using namespace nlohmann;
+	using boost::asio::post;
 
 	namespace {
 		string extract_outs(string&& text) {
@@ -35,6 +37,57 @@ namespace btc_explorer {
 	}
 
 	void BtcTransactionTracer::processTxResponse(cpr::Response&& r, IdType txid) {
+		auto j = json::object();
+		try {
+			j = json::parse(extract_outs(std::move(r.text)), outs_filter);
+			PLOGD << "Processing txid=" << txid << " with " << j["out"].size() << " outs";
+		}
+		catch (std::exception& ex) {
+			PLOGW << "Processing txid failed with " << ex.what();
+			std::lock_guard<std::mutex> lk(mx);
+			tx_err.insert(txid);
+			return;
+		}
+
+		bool all_spent = true;
+		for (auto& tx : j["out"]) {
+			assert(tx["spent"].is_boolean());
+
+			if (tx["spent"] == true) {
+				for (auto& addr : tx["spending_outpoints"]) {
+					assert(addr["tx_index"].is_number_unsigned());
+
+					auto val = addr["tx_index"].get<IdType>();
+					PLOGD << "Chaining new transaction with txid=" << val;
+					std::lock_guard<std::mutex> lk(mx);
+					if (!tx_cache.count(val))
+						post(pool, std::bind(&BtcTransactionTracer::processTxRequest, this, val));
+				}
+			}
+			else {
+				auto val = tx["addr"];
+				if (val.is_string()) {
+					// cb4ba354741eb3ff2a44dfe410136c7a268af85e5f8ec261185aef0f0167270a, "addr":null ?!
+					all_spent = false;
+
+					auto addr = val.get<string>();
+
+					std::lock_guard<std::mutex> lk(mx);
+					res.insert(addr);
+					PLOGI << "Adding new unspent address=" << addr << ", " << res.size() << " in total";
+				}
+			}
+		}
+		PLOGD << "\n";
+
+		if (!all_spent) {
+			std::lock_guard<std::mutex> lk(mx);
+			tx_cache.insert(j["out"].front()["tx_index"].get<IdType>());
+		}
+	}
+
+	void BtcTransactionTracer::processTxRequest(IdType txid) {
+		auto r = btcApi->getTxRaw(txid);
 		if (r.error || r.status_code != 200) {
 			PLOGW << "Unable to read txid=" << txid << " from " << r.url;
 
@@ -47,67 +100,13 @@ namespace btc_explorer {
 
 			std::lock_guard<std::mutex> lk(mx);
 			tx_err.insert(std::move(txid));
-			return;
 		}
-
-		auto j = json::object();
-		try {
-			j = json::parse(extract_outs(std::move(r.text)), outs_filter);
-			PLOGD << "Processing txid=" << txid << " with " << j["out"].size() << " outs";
-		}
-		catch (std::exception& ex) {
-			PLOGW << "Processing txid failed with " << ex.what();
-			std::lock_guard<std::mutex> lk(mx);
-			tx_err.insert(txid);
-		}
-
-		bool all_spent = true;
-		for (auto& tx : j["out"]) {
-			assert(tx["spent"].is_boolean());
-
-			if (tx["spent"] == true) {
-				for (auto& addr : tx["spending_outpoints"]) {
-					assert(addr["tx_index"].is_number_unsigned());
-
-					auto val = addr["tx_index"].get<IdType>();
-					std::lock_guard<std::mutex> lk(mx);
-					q.push(val);
-
-					PLOGD << "Chaining new transaction with txid=" << val;
-				}
-			}
-			else {
-				auto val = tx["addr"];
-				if (val.is_string()) {
-					// cb4ba354741eb3ff2a44dfe410136c7a268af85e5f8ec261185aef0f0167270a, "addr":null ?!
-					all_spent = false;
-
-					auto addr = val.get<string>();
-					std::lock_guard<std::mutex> lk(mx);
-					res.insert(addr);
-
-					PLOGD << "Adding new unspent address=" << addr;
-				}
-			}
-		}
-		PLOGD << "\n";
-
-		if (!all_spent) {
-			std::lock_guard<std::mutex> lk(mx);
-			tx_cache.insert(j["out"].front()["tx_index"].get<IdType>());
+		else {
+			processTxResponse(std::move(r), std::move(txid));
 		}
 	}
 
-	std::optional<BtcTransactionTracer::IdType> BtcTransactionTracer::getNextAddress() {
-		std::lock_guard<std::mutex> lk(mx);
-		while (!q.empty() && tx_cache.count(q.front())) q.pop();
-		if (q.empty()) return std::nullopt;
-
-		auto txid = std::move(q.front()); q.pop();
-		return txid;
-	}
-
-	bool BtcTransactionTracer::init(string&& tx_hash) {
+	std::optional<BtcTransactionTracer::IdType> BtcTransactionTracer::init(string&& tx_hash) {
 		PLOGI << "Starting tracing from the tx_hash=" << tx_hash << "\n";
 		auto r = btcApi->getTxRaw(tx_hash);
 
@@ -123,40 +122,23 @@ namespace btc_explorer {
 				});
 
 			auto val = j["tx_index"];
-			if (val.is_number_unsigned()) q.push(val.get<std::uint64_t>());
+			if (val.is_number_unsigned())
+				return val.get<std::uint64_t>();
 		}
-		return r.error.code == cpr::ErrorCode::OK && r.status_code == 200;
+		return std::nullopt;
 	}
 
 	pair<std::vector<BtcTransactionTracer::AddressType>, std::vector<BtcTransactionTracer::IdType>>
 		BtcTransactionTracer::traceAddresses(string tx_hash) {
-		if (!init(std::move(tx_hash))) return {};
+		std::ofstream fout(conf.out_file);
 
-		std::vector<std::future<void>> requests(async_cnt);
-		for (uint64_t step = 1, total_req = 0; !q.empty(); ++step) {
-			PLOGI << "#Step " << step << ": total_req=" << total_req << ", res_size=" << res.size();
+		auto txid = init(std::move(tx_hash));
+		if (!txid) return {};
 
-			auto qsize = min(q.size(), async_cnt);
-			for (auto i = 0; i < qsize; ++i) {
-				auto txid = getNextAddress();
-				if (!txid) qsize = i;
-				else {
-					requests[i] = btcApi->getTxRawAsync(
-						*txid, std::bind(&BtcTransactionTracer::processTxResponse, this, std::placeholders::_1, *txid));
-				}
-			}
+		post(pool, std::bind(&BtcTransactionTracer::processTxRequest, this, *txid));
+		pool.join();
 
-			for (auto i = 0; i < qsize; ++i) {
-				try {
-					requests[i].get();
-				}
-				catch (std::exception& ex) {
-					PLOGE << "Error encountered in the async request:" << ex.what();
-				}
-			}
-			total_req += qsize;
-		}
-
+		std::copy(res.begin(), res.end(), std::ostream_iterator<AddressType>(fout, ", "));
 		return {
 			std::vector<AddressType>(res.begin(), res.end()),
 			std::vector<IdType>(tx_err.begin(), tx_err.end())
@@ -164,9 +146,14 @@ namespace btc_explorer {
 	}
 
 	BtcTransactionTracer::BtcTransactionTracer(const TracerConfig& conf) :
-		btcApi(std::make_unique<BtcApi>()), async_cnt(conf.async_cnt) {
+		btcApi(std::make_unique<BtcApi>()), pool(min(std::thread::hardware_concurrency(), conf.async_cnt)),
+		conf(conf) {
 
-		PLOGI << "Initialized max async requests=" << static_cast<size_t>(async_cnt);
+		PLOGI << "Initialized thread pool with workers=" << min(std::thread::hardware_concurrency(), conf.async_cnt);
 	}
 
+	BtcTransactionTracer::~BtcTransactionTracer() {
+		pool.stop();
+		pool.join();
+	}
 }

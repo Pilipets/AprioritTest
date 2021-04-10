@@ -14,5 +14,6 @@ namespace btc_explorer {
 	public:
 		std::future<void> getTxRawAsync(uint64_t txid, std::function<void(cpr::Response)>&& cb);
 		cpr::Response getTxRaw(string tx_hash);
+		cpr::Response getTxRaw(uint64_t txid);
 	};
 }
