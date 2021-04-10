@@ -5,6 +5,7 @@ Dependencies:
 2. https://github.com/SergiusTheBest/plog
 3. https://github.com/nlohmann/json
 4. https://github.com/whoshuu/cpr
+5. Compiled Debug x64 with VisualStudio/16.9.3+31129.286.
 
 Details:
 1. Stack: C++14, oat++
