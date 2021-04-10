@@ -30,10 +30,12 @@ int main(int argc, char** argv) {
 
 		std::cout << "Traced " << res.size() << " addresses:";
 		copy(res.begin(), res.end(), std::ostream_iterator<std::string>(std::cout, ", "));
+		std::cout << "\n\n";
 
 		if (err.size()) {
 			std::cout << "Unable to trace" << err.size() << " transactions:";
 			copy(err.begin(), err.end(), std::ostream_iterator<uint64_t>(std::cout, ", "));
+			std::cout << "\n\n";
 		}
 	}
 	catch (std::exception& ex) {

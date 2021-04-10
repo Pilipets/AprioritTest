@@ -16,7 +16,7 @@ namespace btc_explorer {
 	using std::string;
 
 	struct TracerConfig {
-		uint8_t async_cnt = 5;
+		uint8_t async_cnt;
 	};
 
 
@@ -41,7 +41,7 @@ namespace btc_explorer {
 		bool init(string&& tx_hash);
 	public:
 		BtcTransactionTracer() = delete;
-		pair<std::vector<string>, std::vector<IdType>> traceAddresses(string txHash);
+		pair<std::vector<AddressType>, std::vector<IdType>> traceAddresses(string txHash);
 		BtcTransactionTracer(const TracerConfig& conf);
 	};
 }
