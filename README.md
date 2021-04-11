@@ -15,12 +15,9 @@ Details:
 3. Compiled static libraries - JSON, cpr - can be added upon request.
 4. Some transactions network requests may fail for whatever reason - we can't repeat them again and again since it may lead to the infinity loop,
 so we store them into the BtcTransactionTracer::tx_err.
-5. BtcTransactionTracer::tx_cache stores the transaction where unspent outputs were found - tx_cache.size() <= res.size().
-Besides additional unspent-related details, it serves as a cache, to avoid processing the same transaction multiple times.
-5. UPDATED - tx_cache stores all the processed transactions, it increased the performance.
+5. UPDATED - tx_cache stores is lru of all the processed transactions.
 
 PAY ATTENTION:
-1. There is an enormous drawback with thread pool processing logic - we need a cache to avoid processing the same transaction twice - nonetheless, a loop is impossible.
+1. There is an enormous drawback with thread pool processing logic - we need a cache to speed up the proess by skipping already processed transactions - nonetheless, a loop is impossible.
 2. We can eliminate the necessity of storing the cache using the transaction index sorting technique and one thread worker.
 3. One-threaded version is available in developer branch.
-3. I haven't tested which approach is faster yet.
