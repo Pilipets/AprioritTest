@@ -1,4 +1,3 @@
-#include <stdexcept>
 #include <iterator>
 #include <iostream>
 #include <string>
@@ -10,8 +9,6 @@
 
 #include "tracer/BtcTransactionTracer.h"
 
-#include <boost/asio/thread_pool.hpp>
-
 using btc_explorer::BtcTransactionTracer;
 using btc_explorer::TracerConfig;
 
@@ -20,12 +17,16 @@ int main(int argc, char** argv) {
 	static plog::ConsoleAppender<plog::TxtFormatter> consoleAppender;
 	plog::init(plog::info, &consoleAppender);
 
-	if (argc != 2) {
-		PLOGD << "First transaction as an argument 'tx_hash' is expected";
-		throw std::logic_error("First transaction as an argument ':txhash' is expected");
+	if (argc == 1) {
+		PLOGF << "Up to 4 Additional arguments expected - tx_hash, out_file_path, threads_count, max_search_depth";
+		return -1;
 	}
 
-	BtcTransactionTracer tracer(TracerConfig{ 6, "out.txt", INT_MAX});
+	TracerConfig conf;
+	conf.out_file = argc > 2 ? argv[2] : "out.txt";
+	conf.threads_cnt = argc > 3 ? std::stoi(argv[3]) : 6;
+	conf.max_depth = argc > 4 ? std::stoi(argv[4]) : 10;
+	BtcTransactionTracer tracer(conf);
 
 	try {
 		auto [res, err] = tracer.traceAddresses(argv[1]);

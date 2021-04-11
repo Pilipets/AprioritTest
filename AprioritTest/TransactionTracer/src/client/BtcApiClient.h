@@ -1,6 +1,5 @@
 #pragma once
 
-#include <future>
 #include <string>
 #include <functional>
 
@@ -12,7 +11,6 @@ namespace btc_explorer {
 	class BtcApiClient {
 		const string host = "https://blockchain.info/";
 	public:
-		std::future<void> getTxRawAsync(uint64_t txid, std::function<void(cpr::Response)>&& cb);
 		cpr::Response getTxRaw(string tx_hash);
 		cpr::Response getTxRaw(uint64_t txid);
 	};

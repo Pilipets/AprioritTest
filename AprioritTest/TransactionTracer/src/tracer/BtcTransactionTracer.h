@@ -20,9 +20,9 @@ namespace btc_explorer {
 	using std::string;
 
 	struct TracerConfig {
-		uint8_t async_cnt = std::thread::hardware_concurrency();
-		const char* out_file = nullptr;
-		size_t max_depth = 1000;
+		uint8_t threads_cnt;
+		std::string out_file;
+		size_t max_depth;
 	};
 
 

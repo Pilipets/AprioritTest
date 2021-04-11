@@ -1,7 +1,6 @@
 #include "BtcTransactionTracer.h"
 
 #include <cassert>
-#include <future>
 #include <fstream>
 
 #include <plog/Log.h>
@@ -85,17 +84,18 @@ namespace btc_explorer {
 	void BtcTransactionTracer::processTxRequest(IdType txid, size_t depth) {
 		auto r = btcApi->getTxRaw(txid);
 		if (r.error || r.status_code != 200) {
+			auto log = false;
 			{
 				std::lock_guard<std::mutex> lk(mx);
 				tx_err.insert(std::move(txid));
-				PLOGW_IF(tx_err.size() % 100 == 0) << "Unable to read txid=" << txid << " from " << r.url;
+				log = tx_err.size() % 100 == 0;
 			}
+			PLOGW_IF(log) << "Unable to read txid=" << txid << " from " << r.url;
 
 			if (r.error) {
-				PLOGW << "Details: err_code=" << static_cast<int>(r.error.code) << ",msg=" << r.error.message;
-			}
-			else {
-				PLOGW << "Details: http_code=" << r.status_code << ",msg=" << r.status_line;
+				PLOGW_IF(log) << "Details: err_code=" << static_cast<int>(r.error.code) << ",msg=" << r.error.message;
+			} else {
+				PLOGW_IF(log) << "Details: http_code=" << r.status_code << ",msg=" << r.status_line;
 			}
 		}
 		else {
@@ -127,8 +127,6 @@ namespace btc_explorer {
 
 	pair<std::vector<BtcTransactionTracer::AddressType>, std::vector<BtcTransactionTracer::IdType>>
 		BtcTransactionTracer::traceAddresses(string tx_hash) {
-		std::ofstream fout(conf.out_file);
-
 		auto txid = init(std::move(tx_hash));
 		if (!txid) return {};
 
@@ -136,6 +134,7 @@ namespace btc_explorer {
 		post(pool, std::bind(&BtcTransactionTracer::processTxRequest, this, *txid, 0));
 		pool.join();
 
+		std::ofstream fout(conf.out_file);
 		std::copy(res.begin(), res.end(), std::ostream_iterator<AddressType>(fout, ", "));
 		return {
 			std::vector<AddressType>(res.begin(), res.end()),
@@ -144,10 +143,12 @@ namespace btc_explorer {
 	}
 
 	BtcTransactionTracer::BtcTransactionTracer(const TracerConfig& conf) :
-		btcApi(std::make_unique<BtcApi>()), pool(min(std::thread::hardware_concurrency(), conf.async_cnt)),
+		btcApi(std::make_unique<BtcApi>()), pool(min(std::thread::hardware_concurrency(), conf.threads_cnt)),
 		conf(conf) {
 
-		PLOGI << "Initialized thread pool with workers=" << min(std::thread::hardware_concurrency(), conf.async_cnt);
+		PLOGI << "Configured thread pool for " << conf.threads_cnt << "threads";
+		PLOGI << "Configured max depth search for " << conf.max_depth;
+		PLOGI << "Configured printing result to the" << conf.out_file;
 	}
 
 	BtcTransactionTracer::~BtcTransactionTracer() {
