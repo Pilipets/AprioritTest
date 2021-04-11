@@ -5,7 +5,7 @@
 #include <utility>
 #include <optional>
 #include <unordered_set>
-#include <set>
+#include <queue>
 
 #include <cpr/response.h>
 
@@ -29,7 +29,9 @@ namespace btc_explorer {
 
 		const std::unique_ptr<BtcApi> btcApi;
 
-		std::set<std::pair<IdType, size_t>> q;
+		std::priority_queue<pair<IdType, size_t>,
+			std::vector<pair<IdType, size_t>>,
+			std::greater<pair<IdType, size_t>>> q;
 
 		std::unordered_set<IdType> tx_err;
 		std::unordered_set<AddressType> res;

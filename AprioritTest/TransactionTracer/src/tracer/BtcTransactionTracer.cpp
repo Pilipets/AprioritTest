@@ -122,7 +122,7 @@ namespace btc_explorer {
 
 		q.emplace(*txid, 0);
 		while (!q.empty()) {
-			auto [id, depth] = *q.begin(); q.erase(q.begin());
+			auto [id, depth] = q.top(); q.pop();
 			processTxRequest(id, depth);
 		}
 
