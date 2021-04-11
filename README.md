@@ -22,4 +22,5 @@ Besides additional unspent-related details, it serves as a cache, to avoid proce
 PAY ATTENTION:
 1. There is an enormous drawback with thread pool processing logic - we need a cache to avoid processing the same transaction twice - nonetheless, a loop is impossible.
 2. We can eliminate the necessity of storing the cache using the transaction index sorting technique and one thread worker.
+3. One-threaded version is available in developer branch.
 3. I haven't tested which approach is faster yet.
