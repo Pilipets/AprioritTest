@@ -48,7 +48,6 @@ namespace btc_explorer {
 			return;
 		}
 
-		bool all_spent = true;
 		for (auto& tx : j["out"]) {
 			assert(tx["spent"].is_boolean());
 
@@ -63,9 +62,6 @@ namespace btc_explorer {
 						tx_cache.insert(val);
 						post(pool, std::bind(&BtcTransactionTracer::processTxRequest, this, val, depth + 1));
 					}
-					else if (depth == conf.max_depth) {
-						PLOGI << "Cache hit------------------------------";
-					}
 				}
 			}
 			else {
@@ -75,7 +71,6 @@ namespace btc_explorer {
 					auto addr = val.get<string>();
 
 					std::lock_guard<std::mutex> lk(res_mx);
-					//all_spent = false;
 					if (!res.count(addr)) {
 						res.insert(addr);
 						PLOGI_IF(res.size() % 100 == 0) << "Adding new unspent address=" << addr << ", " << res.size() << " in total" << ", cache_size= " << tx_cache.size();
@@ -84,11 +79,6 @@ namespace btc_explorer {
 			}
 		}
 		PLOGD << "\n";
-		/*
-		if (!all_spent) {
-			std::lock_guard<std::mutex> lk(res_mx);
-			tx_cache.insert(j["out"].front()["tx_index"].get<std::uint64_t>());
-		}*/
 	}
 
 	void BtcTransactionTracer::processTxRequest(IdType txid, size_t depth) {
@@ -155,6 +145,8 @@ namespace btc_explorer {
 	BtcTransactionTracer::BtcTransactionTracer(const TracerConfig& conf) :
 		btcApi(std::make_unique<BtcApi>()), pool(min(std::thread::hardware_concurrency(), conf.threads_cnt)),
 		conf(conf) {
+		tx_cache.reserve(1000);
+		res.reserve(1000);
 
 		PLOGI << "Configured thread pool for " << min(std::thread::hardware_concurrency(), conf.threads_cnt) << " threads";
 		PLOGI << "Configured max depth search for " << conf.max_depth;

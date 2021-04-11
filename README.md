@@ -18,3 +18,8 @@ so we store them into the BtcTransactionTracer::tx_err.
 5. BtcTransactionTracer::tx_cache stores the transaction where unspent outputs were found - tx_cache.size() <= res.size().
 Besides additional unspent-related details, it serves as a cache, to avoid processing the same transaction multiple times.
 5. UPDATED - tx_cache stores all the processed transactions, it increased the performance.
+
+PAY ATTENTION:
+1. There is an enormous drawback with thread pool processing logic - we need a cache to avoid processing the same transaction twice - nonetheless, a loop is impossible.
+2. We can eliminate the necessity of storing the cache using the transaction index sorting technique and one thread worker.
+3. I haven't tested which approach is faster yet.
