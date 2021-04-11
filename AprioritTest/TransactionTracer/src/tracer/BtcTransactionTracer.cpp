@@ -42,12 +42,13 @@ namespace btc_explorer {
 			PLOGD << "Processing txid=" << txid << " with " << j["out"].size() << " outs";
 		}
 		catch (std::exception& ex) {
-			std::lock_guard<std::mutex> lk(mx);
+			std::lock_guard<std::mutex> lk(res_mx);
 			tx_err.insert(txid);
 			PLOGW_IF(tx_err.size() % 100 == 0) << "Processing txid failed with " << ex.what();
 			return;
 		}
 
+		bool all_spent = true;
 		for (auto& tx : j["out"]) {
 			assert(tx["spent"].is_boolean());
 
@@ -56,11 +57,14 @@ namespace btc_explorer {
 					assert(addr["tx_index"].is_number_unsigned());
 
 					auto val = addr["tx_index"].get<IdType>();
-					std::lock_guard<std::mutex> lk(mx);
+					std::lock_guard<std::mutex> lk(cache_mx);
 					if (depth < conf.max_depth && !tx_cache.count(val)) {
 						PLOGD << "Chaining new transaction with txid=" << val << ", depth= " << depth;
 						tx_cache.insert(val);
 						post(pool, std::bind(&BtcTransactionTracer::processTxRequest, this, val, depth + 1));
+					}
+					else if (depth == conf.max_depth) {
+						PLOGI << "Cache hit------------------------------";
 					}
 				}
 			}
@@ -70,7 +74,8 @@ namespace btc_explorer {
 					// cb4ba354741eb3ff2a44dfe410136c7a268af85e5f8ec261185aef0f0167270a, "addr":null ?!
 					auto addr = val.get<string>();
 
-					std::lock_guard<std::mutex> lk(mx);
+					std::lock_guard<std::mutex> lk(res_mx);
+					//all_spent = false;
 					if (!res.count(addr)) {
 						res.insert(addr);
 						PLOGI_IF(res.size() % 100 == 0) << "Adding new unspent address=" << addr << ", " << res.size() << " in total" << ", cache_size= " << tx_cache.size();
@@ -79,6 +84,11 @@ namespace btc_explorer {
 			}
 		}
 		PLOGD << "\n";
+		/*
+		if (!all_spent) {
+			std::lock_guard<std::mutex> lk(res_mx);
+			tx_cache.insert(j["out"].front()["tx_index"].get<std::uint64_t>());
+		}*/
 	}
 
 	void BtcTransactionTracer::processTxRequest(IdType txid, size_t depth) {
@@ -86,7 +96,7 @@ namespace btc_explorer {
 		if (r.error || r.status_code != 200) {
 			auto log = false;
 			{
-				std::lock_guard<std::mutex> lk(mx);
+				std::lock_guard<std::mutex> lk(res_mx);
 				tx_err.insert(std::move(txid));
 				log = tx_err.size() % 100 == 0;
 			}
@@ -146,9 +156,9 @@ namespace btc_explorer {
 		btcApi(std::make_unique<BtcApi>()), pool(min(std::thread::hardware_concurrency(), conf.threads_cnt)),
 		conf(conf) {
 
-		PLOGI << "Configured thread pool for " << conf.threads_cnt << "threads";
+		PLOGI << "Configured thread pool for " << min(std::thread::hardware_concurrency(), conf.threads_cnt) << " threads";
 		PLOGI << "Configured max depth search for " << conf.max_depth;
-		PLOGI << "Configured printing result to the" << conf.out_file;
+		PLOGI << "Configured printing result to the " << conf.out_file;
 	}
 
 	BtcTransactionTracer::~BtcTransactionTracer() {

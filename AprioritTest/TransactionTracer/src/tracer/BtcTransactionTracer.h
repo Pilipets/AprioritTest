@@ -34,9 +34,10 @@ namespace btc_explorer {
 		const std::unique_ptr<BtcApi> btcApi;
 
 		boost::asio::thread_pool pool;
-		std::mutex mx;
+		std::mutex cache_mx;
 		boost::unordered_set<IdType> tx_cache;
 
+		std::mutex res_mx;
 		boost::unordered_set<IdType> tx_err;
 		boost::unordered_set<AddressType> res;
 
